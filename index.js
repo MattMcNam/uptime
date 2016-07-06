@@ -1,5 +1,12 @@
 'use strict';
 
+const CLIENT_ID = process.env.TWITCH_CLIENT_ID;
+
+if (!CLIENT_ID) {
+    console.error('Please set TWITCH_CLIENT_ID environment variable');
+    process.exit(1);
+}
+
 const express = require('express');
 const request = require('request');
 const moment = require('moment');
@@ -7,22 +14,29 @@ const moment = require('moment');
 const app = express();
 app.set('trust proxy', true);
 
-app.get('/channel/:channel', (req, res, next) => {
+app.get('/channel/:channel', (req, res) => {
     const channel = req.params.channel;
-    
-    request(`https://api.twitch.tv/kraken/channels/${channel}/videos?limit=50&broadcasts=true`, (err, resp, body) => {
+
+    const options = {
+        headers: {
+            'Accept': 'application/vnd.twitchtv.v3+json',
+            'Client-ID': CLIENT_ID
+        },
+        url: `https://api.twitch.tv/kraken/channels/${channel}/videos?limit=50&broadcasts=true`
+    };
+
+    request(options, (err, resp, body) => {
         const data = JSON.parse(body);
         if (!data.videos || !data.videos[0] || data.videos[0].status !== 'recording') {
            res.send('Offline\n').end();
            return;
         }
-        
 
         const total = calculateDiff(data.videos, 5*60);
         const days = Math.floor(total/(60*24));
         const hours = Math.floor(total/60) - 24*days;
         const minutes = Math.floor(total % 60);
-        
+
         let msg = [];
         if (days === 1)
             msg.push('1 day');
